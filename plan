@@ -1,0 +1,12 @@
+read a video of a chess game.
+For each frame Find coordinates from the intersections of the straight lines.
+if there are 81 coordinates this is a valid image for detecting the movement of pieces.
+If it is different from the last valid image - save it.
+
+Detection of movement of pieces:
+Divide the board into squares by the coordinets of the intersections.
+Using a location, identify each piece at frame 0.
+
+for each frame
+Calculate a delta of a current frame from a previous frame, both at the edges and in color on each slot.
+According to the tools that were in the boxes before, update the location of the piece.
