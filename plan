@@ -1,6 +1,8 @@
 read a video of a chess game.
 For each frame Find coordinates from the intersections of the straight lines.
 if there are 81 coordinates this is a valid image for detecting the movement of pieces.
+לעשות בינים של הזווית כשמכוונים ל90 מעלות הפרש - למצוא 2 זוויות דומיננטיות, ורוצים לעשות בינים למרחק.
+לראות שיש מספיק קווים ולבץ לפי מרחקים.
 If it is different from the last valid image - save it.
 
 Detection of movement of pieces:
