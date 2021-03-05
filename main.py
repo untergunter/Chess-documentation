@@ -155,7 +155,6 @@ def sort_points_clockwise(coords):
 #     return image
 
 def board_reperspective(image,points):
-    height, width = image.shape
     curent_corners = np.float32(sort_points_clockwise(points))
     size_of_new_image = 1800
     map_corners_to = np.float32([[0, 0]
