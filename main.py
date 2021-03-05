@@ -2,6 +2,9 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from itertools import combinations
+from functools import reduce
+import operator
+import math
 
 class FramesGetter:
     def __init__(self, path):
@@ -111,8 +114,59 @@ def find_borders(gray_image)->tuple:
     y = [p[1] for p in board_border_points]
 
     plt.imshow(rgb_image)
-    plt.scatter(x, y, marker="o", color="green", s=10)
+    plt.scatter(x, y, marker="o", color="green", s=20)
     plt.show()
+
+    return board_border_points
+
+def sort_points_clockwise(coords):
+    center = tuple(
+        map(operator.truediv
+                            , reduce(
+                            lambda x, y: map(operator.add, x, y), coords)
+                            , [4] * 2))
+    points_sorted_clockwise = (sorted(coords, key=lambda coord: (-135 - math.degrees(
+        math.atan2(*tuple(map(operator.sub, coord, center))[::-1]))) % 360))
+
+    return points_sorted_clockwise
+#
+# def keep_only_board(image,points):
+#
+#     image = np.copy(image)
+#     x = [int(p[0]) for p in points]
+#     y = [int(p[1]) for p in points]
+#
+#     max_x = max(x)
+#     min_x = min(x)
+#
+#     max_y = max(y)
+#     min_y = min(y)
+#
+#     xl = np.arange(0, image.shape[1])
+#     yl = np.arange(0, image.shape[0])
+#
+#     xx, yy = np.meshgrid(xl, yl)
+#     x_good = (xx >= min_x) * (xx <= max_x) * 1
+#     y_good = (yy >= min_y) * (yy <= max_y) * 1
+#     board = x_good*y_good*1
+#     image = image * board
+#     plt.imshow(image,cmap='gray')
+#     plt.show()
+#     return image
+
+def board_reperspective(image,points):
+    height, width = image.shape
+    curent_corners = np.float32(sort_points_clockwise(points))
+    size_of_new_image = 1800
+    map_corners_to = np.float32([[0, 0]
+                                , [0, size_of_new_image]
+                                , [size_of_new_image, size_of_new_image]
+                                , [size_of_new_image, 0]])
+    rotation_matrix = cv2.getPerspectiveTransform(curent_corners, map_corners_to)
+    aligned = cv2.warpPerspective(image, rotation_matrix, (1800, 1800))
+    plt.imshow(aligned,cmap='gray')
+    plt.show()
+    return aligned
 
 def main(path: str) -> tuple:
     """setup file reading"""
@@ -124,8 +178,12 @@ def main(path: str) -> tuple:
     plt.imshow(current_gray_frame,cmap='gray')
     plt.show()
 
-    find_borders(current_gray_frame)
+    board_border_points = find_borders(current_gray_frame)
     # do things to first frame
+
+    # board = keep_only_board(current_gray_frame,board_border_points)
+
+    croped_board = board_reperspective(current_gray_frame,board_border_points)
 
     if False:
         while video_reader.more_to_read is True:
