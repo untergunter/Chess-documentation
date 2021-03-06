@@ -6,6 +6,7 @@ from functools import reduce
 import operator
 import math
 
+
 class FramesGetter:
     def __init__(self, path):
         self.video = cv2.VideoCapture(path)
@@ -19,6 +20,7 @@ class FramesGetter:
         else:
             return None
 
+
 def h_v_lines(lines):
     h_lines, v_lines = [], []
     for rho, theta in lines:
@@ -27,6 +29,7 @@ def h_v_lines(lines):
         else:
             h_lines.append([rho, theta])
     return h_lines, v_lines
+
 
 # Find the intersections of the lines
 def line_intersections(h_lines, v_lines):
@@ -39,96 +42,110 @@ def line_intersections(h_lines, v_lines):
             points.append(inter_point)
     return np.array(points)
 
-def euclidien_distance(x1,y1,x2,y2):
-    return ((x1-x2)**2+(y1-y2)**2)**0.5
 
-def cluster_points(points_array,minimal_distance:int):
+def euclidien_distance(x1, y1, x2, y2):
+    return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
+
+
+def cluster_points(points_array, minimal_distance: int):
     final_points = []
     for row in range(points_array.shape[0]):
         to_keep = True
-        x,y = points_array[row,:]
-        for x_exist,y_exist in final_points:
-            if euclidien_distance(x,y,x_exist,y_exist)<minimal_distance:
+        x, y = points_array[row, :]
+        for x_exist, y_exist in final_points:
+            if euclidien_distance(x, y, x_exist, y_exist) < minimal_distance:
                 to_keep = False
                 break
         if to_keep is True:
-            final_points.append((x,y))
+            final_points.append((x, y))
     return final_points
 
-def two_points_euclidien_distance(p1,p2):
-    return euclidien_distance(p1[0],p1[1],p2[0],p2[1])
 
-def is_valid_square(points_4,minimal_distance:int):
-    distances = list({ two_points_euclidien_distance(p1,p2) for p1 in points_4 for p2 in points_4
-                     if p1 != p2})
+def two_points_euclidien_distance(p1, p2):
+    return euclidien_distance(p1[0], p1[1], p2[0], p2[1])
+
+
+def is_valid_square(points_4, minimal_distance: int):
+    distances = list({two_points_euclidien_distance(p1, p2) for p1 in points_4 for p2 in points_4
+                      if p1 != p2})
     distances.sort()
-    small_vertices,big_vertices\
-        ,small_diagonal,big_diagonal\
-            =distances[0],distances[3]\
-                ,distances[4],distances[5]
+    small_vertices, big_vertices \
+        , small_diagonal, big_diagonal \
+        = distances[0], distances[3] \
+        , distances[4], distances[5]
     if big_vertices - small_vertices <= minimal_distance:
-        if abs((2**0.5)*big_vertices -small_diagonal) <= minimal_distance:
+        if abs((2 ** 0.5) * big_vertices - small_diagonal) <= minimal_distance:
             if abs((2 ** 0.5) * small_vertices - big_diagonal) <= minimal_distance:
-                return sum(distances[:4])/4
+                return sum(distances[:4]) / 4
     return None
 
-def find_max_square(points,minimal_distance:int):
-    valid_squares = [(quad,is_valid_square(quad,minimal_distance))
-                     for quad in combinations(points,4)
-                     if is_valid_square(quad,minimal_distance) is not None]
-    valid_squares.sort(key = lambda x:x[1])
+
+def find_max_square(points, minimal_distance: int):
+    valid_squares = [(quad, is_valid_square(quad, minimal_distance))
+                     for quad in combinations(points, 4)
+                     if is_valid_square(quad, minimal_distance) is not None]
+    valid_squares.sort(key=lambda x: x[1])
     bigest_square = valid_squares[-1][0]
     return bigest_square
 
 
-
-def find_borders(gray_image)->tuple:
+def find_borders(gray_image) -> tuple:
     """ this function returns tuple with 4 corners of the board """
     gray_image = np.copy(gray_image)
     rgb_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2RGB)
     mask = gray_image > 80
     gray_image[mask] = 255
-    plt.imshow(gray_image, cmap='gray')
-    plt.show()
+    # plt.imshow(gray_image, cmap='gray')
+    # plt.show()
 
     edges = cv2.Canny(gray_image, 50, 150, apertureSize=3)
-    plt.imshow(edges, cmap='gray')
-    plt.show()
+    # plt.imshow(edges, cmap='gray')
+    # plt.show()
 
-    lines = cv2.HoughLines(edges, 0.83,np.deg2rad(1),200)
-    lines = lines.reshape((-1,2))
-    horizontal , vertical = h_v_lines(lines)
-    intersection_points = line_intersections(horizontal,vertical)
-    clustered_points = cluster_points(intersection_points,50)
+    lines = cv2.HoughLines(edges, 0.83, np.deg2rad(1), 200)
+    lines = lines.reshape((-1, 2))
+    horizontal, vertical = h_v_lines(lines)
+    intersection_points = line_intersections(horizontal, vertical)
+    clustered_points = cluster_points(intersection_points, 50)
+
+    x = [p[0] for p in intersection_points]
+    y = [p[1] for p in intersection_points]
+
+    # plt.imshow(rgb_image)
+    # plt.scatter(x, y, marker="o", color="red", s=5)
+    # plt.show()
 
     x = [p[0] for p in clustered_points]
     y = [p[1] for p in clustered_points]
 
-    plt.imshow(rgb_image)
-    plt.scatter(x, y, marker="o", color="red", s=5)
-    plt.show()
+    # plt.imshow(rgb_image)
+    # plt.scatter(x, y, marker="o", color="red", s=5)
+    # plt.show()
 
     board_border_points = find_max_square(clustered_points, 100)
 
     x = [p[0] for p in board_border_points]
     y = [p[1] for p in board_border_points]
 
-    plt.imshow(rgb_image)
-    plt.scatter(x, y, marker="o", color="green", s=20)
-    plt.show()
+    # plt.imshow(rgb_image)
+    # plt.scatter(x, y, marker="o", color="green", s=20)
+    # plt.show()
 
     return board_border_points
+
 
 def sort_points_clockwise(coords):
     center = tuple(
         map(operator.truediv
-                            , reduce(
-                            lambda x, y: map(operator.add, x, y), coords)
-                            , [4] * 2))
+            , reduce(
+                lambda x, y: map(operator.add, x, y), coords)
+            , [4] * 2))
     points_sorted_clockwise = (sorted(coords, key=lambda coord: (-135 - math.degrees(
         math.atan2(*tuple(map(operator.sub, coord, center))[::-1]))) % 360))
 
     return points_sorted_clockwise
+
+
 #
 # def keep_only_board(image,points):
 #
@@ -154,27 +171,62 @@ def sort_points_clockwise(coords):
 #     plt.show()
 #     return image
 
-def board_reperspective(image,points):
+def board_reperspective(image, points):
     curent_corners = np.float32(sort_points_clockwise(points))
     size_of_new_image = 1800
     map_corners_to = np.float32([[0, 0]
-                                , [0, size_of_new_image]
-                                , [size_of_new_image, size_of_new_image]
-                                , [size_of_new_image, 0]])
+                                    , [0, size_of_new_image]
+                                    , [size_of_new_image, size_of_new_image]
+                                    , [size_of_new_image, 0]])
     rotation_matrix = cv2.getPerspectiveTransform(curent_corners, map_corners_to)
     aligned = cv2.warpPerspective(image, rotation_matrix, (1800, 1800))
-    plt.imshow(aligned,cmap='gray')
-    plt.show()
+    # plt.imshow(aligned, cmap='gray')
+    # plt.show()
     return aligned
+
+def find_81_points(gray_image) -> tuple:
+    """ this function returns 81 points of the board squares """
+    gray_image = np.copy(gray_image)
+    cropped = gray_image[95:-95, 95:-95]
+    plt.imshow(cropped, cmap='gray')
+    plt.show()
+    v = np.median(cropped)
+    lower = int(max(0, (1.0 - 0.33) * v))
+    upper = int(min(255, (1.0 + 0.33) * v))
+    edges = cv2.Canny(cropped, lower, upper)
+    plt.imshow(edges, cmap='gray')
+    plt.show()
+
+    lines = cv2.HoughLines(edges, 1, np.deg2rad(1), 170)
+    lines = np.reshape(lines, (-1, 2))
+    horizontal, vertical = h_v_lines(lines)
+    intersection_points = line_intersections(horizontal, vertical)
+    clustered_points = cluster_points(intersection_points, 50)
+
+    x = [p[0] for p in intersection_points]
+    y = [p[1] for p in intersection_points]
+
+    plt.imshow(cropped, cmap='gray')
+    plt.scatter(x, y, marker="o", color="red", s=5)
+    plt.show()
+
+    x = [p[0] for p in clustered_points]
+    y = [p[1] for p in clustered_points]
+
+    plt.imshow(cropped, cmap='gray')
+    plt.scatter(x, y, marker="o", color="red", s=5)
+    plt.show()
+
+    return clustered_points
 
 def main(path: str) -> tuple:
     """setup file reading"""
     video_reader = FramesGetter(path)
-    current_frame = video_reader.__next__()
+    for i in range(1,250):
+        current_frame = video_reader.__next__()
     current_gray_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
 
-
-    plt.imshow(current_gray_frame,cmap='gray')
+    plt.imshow(current_gray_frame, cmap='gray')
     plt.show()
 
     board_border_points = find_borders(current_gray_frame)
@@ -182,7 +234,11 @@ def main(path: str) -> tuple:
 
     # board = keep_only_board(current_gray_frame,board_border_points)
 
-    croped_board = board_reperspective(current_gray_frame,board_border_points)
+    croped_board = board_reperspective(current_gray_frame, board_border_points)
+    plt.imshow(croped_board, cmap='gray')
+    plt.show()
+
+    find_81_points(croped_board)
 
     if False:
         while video_reader.more_to_read is True:
@@ -200,7 +256,6 @@ def main(path: str) -> tuple:
 
             plt.imshow(current_rgb_frame)
             plt.show()
-
 
 
 if __name__ == '__main__':
