@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from itertools import combinations
 from functools import reduce
+from scipy.cluster.hierarchy import fclusterdata
+import itertools
 import operator
 import math
 
@@ -184,18 +186,53 @@ def board_reperspective(image, points):
     # plt.show()
     return aligned
 
-def find_81_points(gray_image) -> tuple:
+
+def diff_y(p1, p2):
+    diff = p1[1] - p2[1]
+    return np.vdot(diff, diff) ** 0.5
+
+
+def diff_x(p1, p2):
+    diff = p1[0] - p2[0]
+    return np.vdot(diff, diff) ** 0.5
+
+
+def split_list_by_cluster_indexes(points, cluster_indexes):
+    clusters = {}
+    for i, val in enumerate(cluster_indexes):
+        if (val not in clusters):
+            clusters[val] = []
+        clusters[val].append(points[i])
+    for key in clusters.copy().keys():
+        if (len(clusters[key]) < 3):
+            del clusters[key]
+    return clusters
+
+
+def remove_outliers(data, m=1):
+    return data[abs(data - np.mean(data)) < m * np.std(data)]
+
+
+def cluster_avg_diff(cluster, axis):
+    dif_list = []
+    for points_list in cluster.values():
+        points_list_axis = np.sort([pair[axis] for pair in points_list])
+        dif_list.extend(np.diff(points_list_axis))
+        dif_list_arr = np.array(dif_list)
+    return np.average(remove_outliers(dif_list_arr))
+
+
+def find_81_points(gray_image):
     """ this function returns 81 points of the board squares """
     gray_image = np.copy(gray_image)
-    cropped = gray_image[95:-95, 95:-95]
-    plt.imshow(cropped, cmap='gray')
-    plt.show()
-    v = np.median(cropped)
+    # plt.imshow(cropped, cmap='gray')
+    # plt.show()
+    v = np.median(gray_image)
     lower = int(max(0, (1.0 - 0.33) * v))
     upper = int(min(255, (1.0 + 0.33) * v))
-    edges = cv2.Canny(cropped, lower, upper)
-    plt.imshow(edges, cmap='gray')
-    plt.show()
+    edges = cv2.Canny(gray_image, lower, upper)
+    # plt.imshow(edges, cmap='gray')
+    # plt.show()
 
     lines = cv2.HoughLines(edges, 1, np.deg2rad(1), 170)
     lines = np.reshape(lines, (-1, 2))
@@ -203,42 +240,89 @@ def find_81_points(gray_image) -> tuple:
     intersection_points = line_intersections(horizontal, vertical)
     clustered_points = cluster_points(intersection_points, 50)
 
-    x = [p[0] for p in intersection_points]
-    y = [p[1] for p in intersection_points]
+    # x = [p[0] for p in intersection_points]
+    # y = [p[1] for p in intersection_points]
+    #
+    # plt.imshow(cropped, cmap='gray')
+    # plt.scatter(x, y, marker="o", color="red", s=5)
+    # plt.show()
 
-    plt.imshow(cropped, cmap='gray')
+    # x = [p[0] for p in clustered_points]
+    # y = [p[1] for p in clustered_points]
+    #
+    # plt.imshow(cropped, cmap='gray')
+    # plt.scatter(x, y, marker="o", color="red", s=5)
+    # plt.show()
+
+    cluster_x_indexes = fclusterdata(clustered_points, 9, criterion='maxclust', metric=diff_x)
+    cluster_y_indexes = fclusterdata(clustered_points, 9, criterion='maxclust', metric=diff_y)
+
+    clusters_x = split_list_by_cluster_indexes(clustered_points, cluster_x_indexes)
+    clusters_y = split_list_by_cluster_indexes(clustered_points, cluster_y_indexes)
+
+    avg_diff_y = cluster_avg_diff(clusters_x, 1)
+    avg_diff_x = cluster_avg_diff(clusters_y, 0)
+
+    start_x = 0
+    start_y = 0
+    points_x = np.arange(0, 9) * avg_diff_x + start_x
+    points_y = np.arange(0, 9) * avg_diff_y + start_y
+    X2D, Y2D = np.meshgrid(points_y, points_x)
+    final_points = np.column_stack((Y2D.ravel(), X2D.ravel()))
+
+    x = [s[0] for s in final_points]
+    y = [s[1] for s in final_points]
+    plt.imshow(gray_image, cmap='gray')
     plt.scatter(x, y, marker="o", color="red", s=5)
     plt.show()
 
-    x = [p[0] for p in clustered_points]
-    y = [p[1] for p in clustered_points]
+    return final_points
 
-    plt.imshow(cropped, cmap='gray')
-    plt.scatter(x, y, marker="o", color="red", s=5)
-    plt.show()
 
-    return clustered_points
+def crop_81_squares(gray_image, points):
+    rows = []
+    cluster_y_indexes = fclusterdata(points, 9, criterion='maxclust', metric=diff_y)
+    clusters_y = split_list_by_cluster_indexes(points, cluster_y_indexes)
+    for y_list in clusters_y.values():
+        rows.append(y_list)
+    rows = sorted(rows, key=lambda row: np.average([point[1] for point in row]))
+    squares_list = []
+    for first_row, second_row in zip(rows, rows[1:]):
+        for (first_point, second_point) in zip(
+                first_row, second_row[1:]):
+            squares_list.append(gray_image[int(first_point[1]):int(second_point[1]), int(first_point[0]):int(second_point[0])])
+
+    return squares_list
+
 
 def main(path: str) -> tuple:
     """setup file reading"""
     video_reader = FramesGetter(path)
-    for i in range(1,250):
+    for i in range(1, 350):
         current_frame = video_reader.__next__()
     current_gray_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
 
-    plt.imshow(current_gray_frame, cmap='gray')
-    plt.show()
+    # plt.imshow(current_gray_frame, cmap='gray')
+    # plt.show()
 
     board_border_points = find_borders(current_gray_frame)
     # do things to first frame
 
     # board = keep_only_board(current_gray_frame,board_border_points)
 
-    croped_board = board_reperspective(current_gray_frame, board_border_points)
-    plt.imshow(croped_board, cmap='gray')
-    plt.show()
+    cropped_board = board_reperspective(current_gray_frame, board_border_points)
+    # plt.imshow(croped_board, cmap='gray')
+    # plt.show()
 
-    find_81_points(croped_board)
+    cropped_board_no_border = cropped_board[95:-95, 95:-95]
+
+    final_points = find_81_points(cropped_board_no_border)
+
+    squares_list = crop_81_squares(cropped_board_no_border, final_points)
+
+    for square in squares_list:
+        plt.imshow(square, cmap='gray')
+        plt.show()
 
     if False:
         while video_reader.more_to_read is True:
