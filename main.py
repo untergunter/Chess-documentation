@@ -118,18 +118,18 @@ def find_borders(gray_image) -> tuple:
     lines = lines.reshape((-1, 2))
     horizontal, vertical = h_v_lines(lines)
     intersection_points = line_intersections(horizontal, vertical)
-    clustered_points = cluster_points(intersection_points, 50)
+    clustered_points = cluster_points(intersection_points, 30)
 
     # x = [p[0] for p in intersection_points]
     # y = [p[1] for p in intersection_points]
-
+    #
     # plt.imshow(rgb_image)
     # plt.scatter(x, y, marker="o", color="red", s=5)
     # plt.show()
 
     # x = [p[0] for p in clustered_points]
     # y = [p[1] for p in clustered_points]
-
+    #
     # plt.imshow(rgb_image)
     # plt.scatter(x, y, marker="o", color="red", s=5)
     # plt.show()
@@ -138,7 +138,7 @@ def find_borders(gray_image) -> tuple:
 
     # x = [p[0] for p in board_border_points]
     # y = [p[1] for p in board_border_points]
-
+    #
     # plt.imshow(rgb_image)
     # plt.scatter(x, y, marker="o", color="green", s=20)
     # plt.show()
@@ -252,7 +252,7 @@ def find_81_points(gray_image):
     lines = np.reshape(lines, (-1, 2))
     horizontal, vertical = h_v_lines(lines)
     intersection_points = line_intersections(horizontal, vertical)
-    clustered_points = cluster_points(intersection_points, 50)
+    clustered_points = cluster_points(intersection_points, 80)
 
     if len(clustered_points) < 15:
         print("Not enough clustered points")
@@ -260,7 +260,7 @@ def find_81_points(gray_image):
 
     # x = [p[0] for p in intersection_points]
     # y = [p[1] for p in intersection_points]
-
+    #
     # plt.imshow(gray_image, cmap='gray')
     # plt.scatter(x, y, marker="o", color="red", s=5)
     # plt.show()
@@ -360,7 +360,7 @@ def diff_squares(current_squares, model):
     columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
     square_is_contains_piece = {}
     for key in current_squares.keys():
-        current_square = current_squares[key]
+        current_square = current_squares[key][20:-20, 20:-20]
         # plt.imshow(current_square, cmap='gray')
         # plt.show()
         current_square = cv2.resize(current_square, (150, 150)).flatten()
@@ -400,9 +400,11 @@ def add_histogram(current_piece_dict, squares_dict_current):
     histograms = []
     labels = []
     for key in current_piece_dict.keys():
-        current_square = squares_dict_current[key]
-        current_square = cv2.resize(current_square, (150, 150)).flatten()
-        hist = cv2.calcHist([current_square], [0], None, [256], [0, 256]).flatten()
+        current_square = squares_dict_current[key][20:-20, 20:-20]
+        current_square = cv2.resize(current_square, (150, 150))
+        hist = cv2.calcHist([current_square], [0], None, [256], [0, 256])
+        # cv2.normalize(hist, hist)
+        hist = hist.flatten()
         histograms.append(hist)
         labels.append(current_piece_dict[key])
 
@@ -419,9 +421,11 @@ def knn_histograms(current_squares_list):
     for current_squares in current_squares_list:
         for row in range(8, 0, -1):
             for col in columns:
-                current_square = current_squares[col + str(row)]
-                current_square = cv2.resize(current_square, (150, 150)).flatten()
-                hist = cv2.calcHist([current_square], [0], None, [256], [0, 256]).flatten()
+                current_square = current_squares[col + str(row)][20:-20, 20:-20]
+                current_square = cv2.resize(current_square, (150, 150))
+                hist = cv2.calcHist([current_square], [0], None, [256], [0, 256])
+                # cv2.normalize(hist, hist)
+                hist = hist.flatten()
                 histograms.append(hist)
                 labels.append("full" if row in [1, 2, 7, 8] else "empty")
 
@@ -431,6 +435,10 @@ def knn_histograms(current_squares_list):
     return histograms, labels
 
 
+def chi_squared(p,q):
+    return 0.5*np.sum((p-q)**2/(p+q+1e-6))
+
+
 def knn_model(histograms, labels):
 
     (trainHist, testHist, trainLabels, testLabels) = train_test_split(
@@ -438,7 +446,7 @@ def knn_model(histograms, labels):
 
     print("[INFO] evaluating histogram accuracy...")
     model = KNeighborsClassifier(n_neighbors=2,
-                                 n_jobs=-1)
+                                 n_jobs=-1, metric=chi_squared)
     model.fit(histograms, labels)
     acc = model.score(testHist, testLabels)
     print("[INFO] histogram accuracy: {:.2f}%".format(acc * 100))
@@ -480,6 +488,7 @@ def start_piece_dict():
         for col in columns:
             piece_dict[col + str(row)] = "full" if row in [1, 2, 7, 8] else "empty"
     return piece_dict
+
 
 def main(path: str) -> tuple:
     """setup file reading"""
