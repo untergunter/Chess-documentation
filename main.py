@@ -345,13 +345,14 @@ def handle_frame(current_frame, debug=None):
         return None
 
     if debug:
+        plt.imshow(cropped_board_no_border, cmap='gray')
         x = [s[0] for s in final_points]
         y = [s[1] for s in final_points]
-        plt.imshow(cropped_board_no_border, cmap='gray')
+        plt.imshow(adjust_gamma(cropped_board_no_border), cmap='gray')
         plt.scatter(x, y, marker="o", color="red", s=5)
         plt.show()
 
-    squares_dict = crop_81_squares(cropped_board_no_border, final_points)
+    squares_dict = crop_81_squares(adjust_gamma(cropped_board_no_border), final_points)
 
     return squares_dict, cropped_board_no_border
 
@@ -488,6 +489,14 @@ def start_piece_dict():
         for col in columns:
             piece_dict[col + str(row)] = "full" if row in [1, 2, 7, 8] else "empty"
     return piece_dict
+
+
+def adjust_gamma(image, gamma=5.0):
+    invGamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** invGamma) * 255
+        for i in np.arange(0, 256)]).astype("uint8")
+    # apply gamma correction using the lookup table
+    return cv2.LUT(image, table)
 
 
 def main(path: str) -> tuple:
