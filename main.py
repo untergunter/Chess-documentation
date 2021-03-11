@@ -367,7 +367,7 @@ def crop_81_squares(gray_image, points):
 def handle_frame(current_frame, debug=None):
     if not debug:
         current_gray_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
-
+        cv2.imwrite('data/test_image.png', current_gray_frame)
         board_border_points = find_board_border_points(current_gray_frame)
 
         if board_border_points is None:
@@ -375,7 +375,7 @@ def handle_frame(current_frame, debug=None):
             return None
 
         cropped_board = board_reperspective(current_gray_frame, board_border_points)
-
+        cv2.imwrite('data/cropped_image.png', cropped_board)
         cropped_board_no_border = cropped_board[75:-75, 75:-75]
     else:
         cropped_board_no_border = current_frame
@@ -384,6 +384,12 @@ def handle_frame(current_frame, debug=None):
 
     if final_points is None:
         print("final points points is None")
+        plt.imshow(cropped_board_no_border,cmap='gray')
+        plt.show()
+        plt.cla()
+        plt.imshow(cropped_board, cmap='gray')
+        plt.show()
+        plt.cla()
         return None
 
     if debug:
