@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from itertools import combinations
 from functools import reduce
 from scipy.cluster.hierarchy import fclusterdata
+from scipy.spatial import distance as dist
 import operator
 import math
 import chess
@@ -151,7 +152,7 @@ def find_borders(gray_image) -> tuple:
     return board_border_points
 
 
-def find_board_border_points(gray_image, debug=False):
+def find_board_border_points(gray_image, debug=True):
     blurred = cv2.GaussianBlur(gray_image, (7, 7), 3)
     thresh = cv2.adaptiveThreshold(blurred, 255,
                                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
@@ -185,16 +186,16 @@ def find_board_border_points(gray_image, debug=False):
         plt.show()
     return board_cnt.reshape(4, 2)
 
-def sort_points_clockwise(coords):
-    center = tuple(
-        map(operator.truediv
-            , reduce(
-                lambda x, y: map(operator.add, x, y), coords)
-            , [4] * 2))
-    points_sorted_clockwise = (sorted(coords, key=lambda coord: (-135 - math.degrees(
-        math.atan2(*tuple(map(operator.sub, coord, center))[::-1]))) % 360))
 
-    return points_sorted_clockwise
+def sort_points_clockwise(coords):
+    xSorted = coords[np.argsort(coords[:, 0]), :]
+    leftMost = xSorted[:2, :]
+    rightMost = xSorted[2:, :]
+    leftMost = leftMost[np.argsort(leftMost[:, 1]), :]
+    (tl, bl) = leftMost
+    D = dist.cdist(tl[np.newaxis], rightMost, "euclidean")[0]
+    (br, tr) = rightMost[np.argsort(D)[::-1], :]
+    return np.array([tl, tr, br, bl], dtype="float32")
 
 
 #
@@ -226,14 +227,14 @@ def board_reperspective(image, points):
     curent_corners = np.float32(sort_points_clockwise(points))
     size_of_new_image = 1800
     map_corners_to = np.float32([[0, 0]
-                                    , [0, size_of_new_image]
+                                    , [size_of_new_image, 0]
                                     , [size_of_new_image, size_of_new_image]
-                                    , [size_of_new_image, 0]])
+                                    , [0, size_of_new_image]])
     rotation_matrix = cv2.getPerspectiveTransform(curent_corners, map_corners_to)
     aligned = cv2.warpPerspective(image, rotation_matrix, (1800, 1800))
-    aligned = cv2.rotate(aligned, cv2.ROTATE_90_COUNTERCLOCKWISE)
-    # plt.imshow(aligned, cmap='gray')
-    # plt.show()
+    # aligned = cv2.rotate(aligned, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    plt.imshow(aligned, cmap='gray')
+    plt.show()
     return aligned
 
 
