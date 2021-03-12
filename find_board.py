@@ -42,7 +42,7 @@ def find_maximal_square(image,segment:int,debug=True):
     minimal_distance = int(np.min(image.shape)/10)
     clustered_points = cluster_points(intersection_points, minimal_distance)
     if len(clustered_points)>15:
-        plot_frame_and_points(image,cluster_points)
+        plot_frame_and_points(image,clustered_points)
         return None
     board_border_points = find_max_square(clustered_points, minimal_distance)
 
