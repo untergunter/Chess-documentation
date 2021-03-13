@@ -104,7 +104,7 @@ def find_borders(gray_image) -> tuple:
     print("here")
     """ this function returns tuple with 4 corners of the board """
     gray_image = np.copy(gray_image)
-    # gray_image = cv2.blur(gray_image, (3, 3))
+    gray_image = cv2.blur(gray_image, (3, 3))
     rgb_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2RGB)
     # mask = gray_image > 80
     # gray_image[mask] = 255
@@ -124,35 +124,35 @@ def find_borders(gray_image) -> tuple:
     lines = lines.reshape((-1, 2))
     horizontal, vertical = h_v_lines(lines)
     intersection_points = line_intersections(horizontal, vertical)
-    clustered_points = cluster_points(intersection_points, 10)
+    clustered_points = cluster_points(intersection_points, 60)
 
-    # x = [p[0] for p in intersection_points]
-    # y = [p[1] for p in intersection_points]
-    #
-    # plt.imshow(rgb_image)
-    # plt.scatter(x, y, marker="o", color="red", s=5)
-    # plt.show()
-    #
-    # x = [p[0] for p in clustered_points]
-    # y = [p[1] for p in clustered_points]
-    #
-    # plt.imshow(rgb_image)
-    # plt.scatter(x, y, marker="o", color="red", s=5)
-    # plt.show()
+    x = [p[0] for p in intersection_points]
+    y = [p[1] for p in intersection_points]
+
+    plt.imshow(rgb_image)
+    plt.scatter(x, y, marker="o", color="red", s=5)
+    plt.show()
+
+    x = [p[0] for p in clustered_points]
+    y = [p[1] for p in clustered_points]
+
+    plt.imshow(rgb_image)
+    plt.scatter(x, y, marker="o", color="red", s=5)
+    plt.show()
 
     board_border_points = find_max_square(clustered_points, 100)
 
-    # x = [p[0] for p in board_border_points]
-    # y = [p[1] for p in board_border_points]
-    #
-    # plt.imshow(rgb_image)
-    # plt.scatter(x, y, marker="o", color="green", s=20)
-    # plt.show()
+    x = [p[0] for p in board_border_points]
+    y = [p[1] for p in board_border_points]
+
+    plt.imshow(rgb_image)
+    plt.scatter(x, y, marker="o", color="green", s=20)
+    plt.show()
 
     return board_border_points
 
 
-def find_board_border_points(gray_image, debug=True):
+def find_board_border_points(gray_image, debug=False):
     blurred = cv2.GaussianBlur(gray_image, (7, 7), 3)
     thresh = cv2.adaptiveThreshold(blurred, 255,
                                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
@@ -232,9 +232,9 @@ def board_reperspective(image, points):
                                     , [0, size_of_new_image]])
     rotation_matrix = cv2.getPerspectiveTransform(curent_corners, map_corners_to)
     aligned = cv2.warpPerspective(image, rotation_matrix, (1800, 1800))
-    # aligned = cv2.rotate(aligned, cv2.ROTATE_90_COUNTERCLOCKWISE)
-    plt.imshow(aligned, cmap='gray')
-    plt.show()
+    aligned = cv2.rotate(aligned, cv2.cv2.ROTATE_90_CLOCKWISE)
+    # plt.imshow(aligned, cmap='gray')
+    # plt.show()
     return aligned
 
 
@@ -370,22 +370,24 @@ def handle_frame(current_frame, debug=None):
         current_gray_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
 
         board_border_points = find_board_border_points(current_gray_frame)
-
+        print("done border_points")
         if board_border_points is None:
             print("border points is None")
             return None
 
-        cropped_board = board_reperspective(current_gray_frame, board_border_points)
+        cropped_board = board_reperspective(current_frame, board_border_points)
 
-        cropped_board_no_border = cropped_board[75:-75, 75:-75]
+        cropped_board_no_border = cropped_board[90:-90, 90:-90]
     else:
         cropped_board_no_border = current_frame
 
-    final_points = find_81_points(cropped_board_no_border)
+    final_points = find_81_points(cv2.cvtColor(cropped_board_no_border, cv2.COLOR_BGR2GRAY))
 
     if final_points is None:
         print("final points points is None")
         return None
+    else:
+        print("done final_points")
 
     if debug:
         plt.imshow(cropped_board_no_border, cmap='gray')
@@ -403,20 +405,48 @@ def handle_frame(current_frame, debug=None):
     return squares_dict, cropped_board_no_border
 
 
+def canny_edge(img, sigma=0.7):
+    v = np.median(img)
+    lower = 10
+    upper = 25
+    edges = cv2.Canny(img, lower, upper)
+    return edges
+
+
 def diff_squares(current_squares, model):
     columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
     square_is_contains_piece = {}
+    temp = {}
+    canny = {}
     for key in current_squares.keys():
         try:
-            if key not in ['a2','f1']: #remove
-                current_square = current_squares[key][20:-20, 20:-20]
-                # plt.imshow(current_square, cmap='gray')
-                # plt.show()
-                current_square = cv2.resize(current_square, (150, 150)).flatten()
-                hist = cv2.calcHist([current_square], [0], None, [256], [0, 256]).flatten()
-                label = model.predict(hist.reshape(1, -1))
-                # print(label)
-                square_is_contains_piece[key] = label
+            current_square = current_squares[key]
+
+            # plt.imshow(current_square, cmap='gray')
+            # plt.show()
+
+            # channels = cv2.mean(cv2.resize(current_square, (150, 150))[30:120, 30:120])
+            # observation = np.array([(channels[2], channels[1], channels[0])])
+            # temp[key] = np.mean(observation)
+
+            # current_square_gray = cv2.cvtColor(cv2.resize(current_square, (200, 200))[70:130, 70:130], cv2.COLOR_BGR2GRAY)
+            # # plt.imshow(current_square_gray, cmap='gray')
+            # # plt.show()
+            # res_canny = canny_edge(current_square_gray)
+            # # plt.imshow(res_canny, cmap='gray')
+            # # plt.show()
+            # canny[key] = cv2.countNonZero(res_canny)
+
+            current_square = cv2.resize(current_square, (150, 150))
+            current_square = current_square[30:120, 30:120]
+            # current_square = current_square.flatten()
+            hist_0 = cv2.calcHist([current_square], [0], None, [256], [0, 256]).flatten()
+            hist_1 = cv2.calcHist([current_square], [1], None, [256], [0, 256]).flatten()
+            hist_2 = cv2.calcHist([current_square], [2], None, [256], [0, 256]).flatten()
+            hist = np.concatenate((hist_0, hist_1, hist_2), axis=None)
+            label = model.predict(hist.reshape(1, -1))
+            # print(label)
+            square_is_contains_piece[key] = label
         except Exception as e:
             print(str(e))
             return None
@@ -451,16 +481,19 @@ def add_histogram(current_piece_dict, squares_dict_current):
     histograms = []
     labels = []
     for key in current_piece_dict.keys():
-        current_square = squares_dict_current[key][20:-20, 20:-20]
+        current_square = squares_dict_current[key]
         current_square = cv2.resize(current_square, (150, 150))
-        hist = cv2.calcHist([current_square], [0], None, [256], [0, 256])
-        # cv2.normalize(hist, hist)
+        current_square = current_square[30:120, 30:120]
+        hist_0 = cv2.calcHist([current_square], [0], None, [256], [0, 256]).flatten()
+        hist_1 = cv2.calcHist([current_square], [1], None, [256], [0, 256]).flatten()
+        hist_2 = cv2.calcHist([current_square], [2], None, [256], [0, 256]).flatten()
+        hist = np.concatenate((hist_0, hist_1, hist_2), axis=None)
         hist = hist.flatten()
         histograms.append(hist)
         labels.append(current_piece_dict[key])
 
-    histograms = np.array(histograms)
-    labels = np.array(labels)
+    # histograms = np.array(histograms)
+    # labels = np.array(labels)
 
     return histograms, labels
 
@@ -472,16 +505,19 @@ def knn_histograms(current_squares_list):
     for current_squares in current_squares_list:
         for row in range(8, 0, -1):
             for col in columns:
-                current_square = current_squares[col + str(row)][20:-20, 20:-20]
+                current_square = current_squares[col + str(row)]
                 current_square = cv2.resize(current_square, (150, 150))
-                hist = cv2.calcHist([current_square], [0], None, [256], [0, 256])
-                # cv2.normalize(hist, hist)
+                current_square = current_square[30:120, 30:120]
+                hist_0 = cv2.calcHist([current_square], [0], None, [256], [0, 256]).flatten()
+                hist_1 = cv2.calcHist([current_square], [1], None, [256], [0, 256]).flatten()
+                hist_2 = cv2.calcHist([current_square], [2], None, [256], [0, 256]).flatten()
+                hist = np.concatenate((hist_0, hist_1, hist_2), axis=None)
                 hist = hist.flatten()
                 histograms.append(hist)
                 labels.append("full" if row in [1, 2, 7, 8] else "empty")
 
-    histograms = np.array(histograms)
-    labels = np.array(labels)
+    # histograms = np.array(histograms)
+    # labels = np.array(labels)
 
     return histograms, labels
 
@@ -489,23 +525,25 @@ def knn_histograms(current_squares_list):
 def chi_squared(p,q):
     return 0.5*np.sum((p-q)**2/(p+q+1e-6))
 
+# def custom_distance(p, q):
+
 
 def knn_model(histograms, labels):
 
     (trainHist, testHist, trainLabels, testLabels) = train_test_split(
-        histograms, labels, test_size=0.1, random_state=99)
+        histograms, labels, test_size=0.2, random_state=99)
 
     print("[INFO] evaluating histogram accuracy...")
-    model = KNeighborsClassifier(n_neighbors=2,
+    model = KNeighborsClassifier(n_neighbors=5,
                                  n_jobs=-1, metric=chi_squared)
     model.fit(histograms, labels)
-    acc = model.score(testHist, testLabels)
-    print("[INFO] histogram accuracy: {:.2f}%".format(acc * 100))
+    # acc = model.score(testHist, testLabels)
+    # print("[INFO] histogram accuracy: {:.2f}%".format(acc * 100))
 
     return model
 
 
-def update_board_state(current_piece_dict, prev_piece_dict, board, game_moves_file, current_frame):
+def update_board_state(current_piece_dict, prev_piece_dict, piece_dict_color_diff, board):
     label_change_count = 0
     to_full_change_count = 0
     to_empty_change_count = 0
@@ -531,27 +569,37 @@ def update_board_state(current_piece_dict, prev_piece_dict, board, game_moves_fi
 
     print(f"moves: {str(label_change_count)}")
 
-    if label_change_count < 2:
+    if piece_dict_color_diff and label_change_count == 1 and to_empty_change_count == 1:
+        color_change_list = [k for k, v in piece_dict_color_diff.items() if v]
+        if from_square[0] in color_change_list:
+            color_change_list.remove(from_square[0])
+        if len(color_change_list) == 1:
+            move = str(from_square[0]) + str(color_change_list[0])
+            if chess.Move.from_uci(move) in board.legal_moves:
+                print(f"made move: {move + ' '}")
+                return move, label_change_count
+
+    elif label_change_count < 2:
         return None, label_change_count
 
     elif label_change_count == 2 and from_square and to_square:
         move = str(from_square[0]) + str(to_square[0])
-        # if chess.Move.from_uci(move) in board.legal_moves:
-        print(f"made move: {move+' '}")
-        return move, label_change_count
-
-    elif 2 < label_change_count < 5 and to_empty_change_count < 2 and from_square and to_square:
-        possible_moves = []
-        for to_empty_square in from_square:
-            for to_full_square in to_square:
-                move = str(to_empty_square) + str(to_full_square)
-                # if chess.Move.from_uci(move) in board.legal_moves:
-                possible_moves.append(move)
-        if len(possible_moves) == 1:
+        if chess.Move.from_uci(move) in board.legal_moves:
             print(f"made move: {move+' '}")
             return move, label_change_count
-        else:
-            return None, label_change_count
+
+    # elif 2 < label_change_count < 5 and to_empty_change_count < 2 and from_square and to_square:
+    #     possible_moves = []
+    #     for to_empty_square in from_square:
+    #         for to_full_square in to_square:
+    #             move = str(to_empty_square) + str(to_full_square)
+    #             if chess.Move.from_uci(move) in board.legal_moves:
+    #                 possible_moves.append(move)
+    #     if len(possible_moves) == 1:
+    #         print(f"made move: {move+' '}")
+    #         return move, label_change_count
+    #     else:
+    #         return None, label_change_count
 
     else:
         for key in debug_change_dict.keys():
@@ -571,12 +619,46 @@ def start_piece_dict():
     return piece_dict
 
 
-def adjust_gamma(image, gamma=2.0):
+def adjust_gamma(image, gamma=3.0):
     invGamma = 1.0 / gamma
     table = np.array([((i / 255.0) ** invGamma) * 255
         for i in np.arange(0, 256)]).astype("uint8")
     # apply gamma correction using the lookup table
     return cv2.LUT(image, table)
+
+
+def update_piece_dict(piece_dict, move):
+    piece_dict[move[0:2]] = 'empty'
+    piece_dict[move[2:4]] = 'full'
+    return piece_dict
+
+
+def color_diff(squares_dict_current, valid_squares_dict):
+    square_is_color_change = {}
+    for key in squares_dict_current.keys():
+        try:
+            current_square = squares_dict_current[key]
+            last_valid_square = valid_squares_dict[key]
+
+            # plt.imshow(current_square, cmap='gray')
+            # plt.show()
+            #
+            # plt.imshow(last_valid_square, cmap='gray')
+            # plt.show()
+
+            channels = cv2.mean(cv2.resize(current_square, (150, 150))[30:120, 30:120])
+            current_mean_colors = np.array([channels[0], channels[1], channels[2]])
+
+            channels = cv2.mean(cv2.resize(last_valid_square, (150, 150))[30:120, 30:120])
+            last_mean_colors = np.array([channels[0], channels[1], channels[2]])
+
+            diff = chi_squared(current_mean_colors, last_mean_colors)
+
+            square_is_color_change[key] = diff > 5
+        except Exception as e:
+            print(str(e))
+            return None
+    return square_is_color_change
 
 
 def main(path: str) -> tuple:
@@ -595,15 +677,26 @@ def main(path: str) -> tuple:
     first_frame = True
     model = None
     frame_counter = 0
-    max_frame = 20
+    max_frame = 10
     squares_dict_list = []
     histograms = None
     labels = None
+    valid_squares_dict = None
+    jump = False
+    piece_dict_color_diff = None
     board = chess.Board()
 
     while video_reader.more_to_read is True:
         prev_frame = current_frame
-        current_frame = video_reader.__next__()
+
+        if jump:
+            for i in range(0, 20):
+                current_frame = video_reader.__next__()
+            frame_counter += 20
+            jump = False
+            print("jump!")
+        else:
+            current_frame = video_reader.__next__()
         if current_frame is None:
             break
         print("next")
@@ -612,6 +705,8 @@ def main(path: str) -> tuple:
         if frame_counter == max_frame:
             histograms, labels = knn_histograms(squares_dict_list)
             model = knn_model(histograms, labels)
+            # plt.imshow(cropped_frame, cmap='gray')
+            # plt.show()
 
         if squares_dict_current is not None:
             prev_cropped_frame = cropped_frame
@@ -621,6 +716,7 @@ def main(path: str) -> tuple:
         if res:
             squares_dict_current, cropped_frame = res
             squares_dict_list.append(squares_dict_current)
+            print("done handle")
             # if first_frame:
             #     histograms, labels = knn_histograms(squares_dict_current)
             #     model = knn_model(histograms, labels)
@@ -632,22 +728,38 @@ def main(path: str) -> tuple:
                 prev_piece_dict = start_piece_dict()
                 first_frame = False
             current_piece_dict = diff_squares(squares_dict_current, model)
+            print("done diff")
+            if valid_squares_dict:
+                piece_dict_color_diff = color_diff(squares_dict_current, valid_squares_dict)
             if prev_piece_dict and current_piece_dict:
-                move, label_change_count = update_board_state(current_piece_dict, prev_piece_dict, board, game_moves_file, cropped_frame)
+                move, label_change_count = update_board_state(current_piece_dict, prev_piece_dict, piece_dict_color_diff, board)
+                print("done update")
                 if move:
                     game_moves_file.write(move+" ")
                     board.push(chess.Move.from_uci(move))
                     temp_histograms, temp_labels = add_histogram(current_piece_dict, squares_dict_current)
-                    model = knn_model(np.concatenate((histograms, temp_histograms), axis=0), np.concatenate((labels, temp_labels.reshape(-1)), axis=0))
-                    prev_piece_dict = current_piece_dict
-                # else:
-                    # if label_change_count < 5:
-                        # temp_histograms, temp_labels = add_histogram(prev_piece_dict, squares_dict_current)
-                        # model = knn_model(np.concatenate((histograms, temp_histograms), axis=0), np.concatenate((labels, temp_labels.reshape(-1)), axis=0))
-                    # else:
-                    #     plt.imshow(cropped_frame, cmap='gray')
-                    #     plt.show()
+                    histograms.extend(temp_histograms)
+                    labels.extend(temp_labels)
+                    model = knn_model(histograms, labels)
+                    prev_piece_dict = update_piece_dict(prev_piece_dict, move)
+                    valid_squares_dict = squares_dict_current
+                    jump = True
+                else:
+                    if label_change_count == 0:
+                        valid_squares_dict = squares_dict_current
+                        jump = True
+                    # if label_change_count < 4:
+                    #     temp_histograms, temp_labels = add_histogram(prev_piece_dict, squares_dict_current)
+                    #     # histograms = histograms[256:]
+                    #     # labels = labels[256:]
+                    #     histograms.extend(temp_histograms)
+                    #     labels.extend(temp_labels)
+                    #     model = knn_model(histograms, labels)
+                    #     # model = knn_model(np.concatenate((histograms, temp_histograms), axis=0), np.concatenate((labels, temp_labels.reshape(-1)), axis=0))
+                #     else:
+                #         plt.imshow(cropped_frame, cmap='gray')
+                #         plt.show()
     game_moves_file.close()
 
 if __name__ == '__main__':
-    main(r'data/new_hope.mp4')
+    main(r'data/new_chess.mp4')
