@@ -11,6 +11,9 @@ import chess
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 import imutils
+from scipy.spatial.distance import cdist
+import pandas as pd
+import networkx as nx
 
 class FramesGetter:
     def __init__(self, path):
@@ -53,16 +56,34 @@ def euclidien_distance(x1, y1, x2, y2):
 
 
 def cluster_points(points_array, minimal_distance: int):
-    final_points = []
-    for row in range(points_array.shape[0]):
-        to_keep = True
-        x, y = points_array[row, :]
-        for x_exist, y_exist in final_points:
-            if euclidien_distance(x, y, x_exist, y_exist) < minimal_distance:
-                to_keep = False
-                break
-        if to_keep is True:
-            final_points.append((x, y))
+    points_df = pd.DataFrame(points_array,columns=['x','y'])
+    points_df['point_index']=pd.Series(range(points_df.shape[0]))
+    points_df['join_key']=0
+    cross_join = pd.merge(left=points_df,right=points_df,on='join_key',suffixes=['_1','_2'])
+    cross_join['distance']= (
+                            (cross_join['x_1']-cross_join['x_2'])**2 +
+                            (cross_join['y_1']-cross_join['y_2'])**2
+                            )**0.5
+    close_points = cross_join[cross_join['distance']<=minimal_distance]
+
+    G = nx.Graph()
+    G.add_edges_from(close_points[['point_index_1','point_index_2']].to_numpy().tolist())
+    connected = list(nx.connected_components(G))
+    points_indices = []
+    for component in connected:
+        element_index = next(iter(component))
+        points_indices.append(element_index)
+    final_points = np.take(points_array,points_indices,0)
+    # final_points = []
+    # for row in range(points_array.shape[0]):
+    #     to_keep = True
+    #     x, y = points_array[row, :]
+    #     for x_exist, y_exist in final_points:
+    #         if euclidien_distance(x, y, x_exist, y_exist) < minimal_distance:
+    #             to_keep = False
+    #             break
+    #     if to_keep is True:
+    #         final_points.append((x, y))
     return final_points
 
 
@@ -71,9 +92,8 @@ def two_points_euclidien_distance(p1, p2):
 
 
 def is_valid_square(points_4, minimal_distance: int):
-    distances = list({two_points_euclidien_distance(p1, p2) for p1 in points_4 for p2 in points_4
-                      if p1 != p2})
-    distances.sort()
+
+    distances = np.unique(cdist(points_4,points_4))[1:]
 
     if len(distances) < 6:
         return None
@@ -90,12 +110,16 @@ def is_valid_square(points_4, minimal_distance: int):
 
 
 def find_max_square(points, minimal_distance: int):
-    valid_squares = [(quad, is_valid_square(quad, minimal_distance))
-                     for quad in combinations(points, 4)
-                     if is_valid_square(quad, minimal_distance) is not None]
-    valid_squares.sort(key=lambda x: x[1])
+    valid_squares = [(np.take(points,indices,0),
+                      is_valid_square(np.take(points,indices,0), minimal_distance))
+                     for indices in combinations(range(points.shape[0]), 4)
+                        ]
+    valid_squares = [square for square in  valid_squares if not square[1] is None]
+    if None in valid_squares:
+        valid_squares.remove(None)
     if len(valid_squares) < 1:
-        return None
+            return None
+    valid_squares.sort(key=lambda x: x[1])
     bigest_square = valid_squares[-1][0]
     return bigest_square
 
@@ -104,7 +128,7 @@ def find_borders(gray_image) -> tuple:
     print("here")
     """ this function returns tuple with 4 corners of the board """
     gray_image = np.copy(gray_image)
-    gray_image = cv2.blur(gray_image, (3, 3))
+    # gray_image = cv2.blur(gray_image, (3, 3))
     rgb_image = cv2.cvtColor(gray_image, cv2.COLOR_GRAY2RGB)
     # mask = gray_image > 80
     # gray_image[mask] = 255
@@ -124,35 +148,35 @@ def find_borders(gray_image) -> tuple:
     lines = lines.reshape((-1, 2))
     horizontal, vertical = h_v_lines(lines)
     intersection_points = line_intersections(horizontal, vertical)
-    clustered_points = cluster_points(intersection_points, 60)
+    clustered_points = cluster_points(intersection_points, int(min(gray_image.shape)/30)  )
 
-    x = [p[0] for p in intersection_points]
-    y = [p[1] for p in intersection_points]
-
-    plt.imshow(rgb_image)
-    plt.scatter(x, y, marker="o", color="red", s=5)
-    plt.show()
-
-    x = [p[0] for p in clustered_points]
-    y = [p[1] for p in clustered_points]
-
-    plt.imshow(rgb_image)
-    plt.scatter(x, y, marker="o", color="red", s=5)
-    plt.show()
+    # x = [p[0] for p in intersection_points]
+    # y = [p[1] for p in intersection_points]
+    #
+    # plt.imshow(rgb_image)
+    # plt.scatter(x, y, marker="o", color="red", s=5)
+    # plt.show()
+    #
+    # x = [p[0] for p in clustered_points]
+    # y = [p[1] for p in clustered_points]
+    #
+    # plt.imshow(rgb_image)
+    # plt.scatter(x, y, marker="o", color="red", s=5)
+    # plt.show()
 
     board_border_points = find_max_square(clustered_points, 100)
 
-    x = [p[0] for p in board_border_points]
-    y = [p[1] for p in board_border_points]
-
-    plt.imshow(rgb_image)
-    plt.scatter(x, y, marker="o", color="green", s=20)
-    plt.show()
+    # x = [p[0] for p in board_border_points]
+    # y = [p[1] for p in board_border_points]
+    #
+    # plt.imshow(rgb_image)
+    # plt.scatter(x, y, marker="o", color="green", s=20)
+    # plt.show()
 
     return board_border_points
 
 
-def find_board_border_points(gray_image, debug=False):
+def find_board_border_points(gray_image, debug=True):
     blurred = cv2.GaussianBlur(gray_image, (7, 7), 3)
     thresh = cv2.adaptiveThreshold(blurred, 255,
                                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
@@ -524,8 +548,6 @@ def knn_histograms(current_squares_list):
 
 def chi_squared(p,q):
     return 0.5*np.sum((p-q)**2/(p+q+1e-6))
-
-# def custom_distance(p, q):
 
 
 def knn_model(histograms, labels):
