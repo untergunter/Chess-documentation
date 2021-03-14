@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from scipy.spatial import ConvexHull, convex_hull_plot_2d
+from scipy.signal import argrelextrema
 
 def keep_board_from_frame_by_last_known_coords(image,last_coords,delta):
     only_board_surrounding = image.copy()
@@ -27,6 +29,40 @@ def plot_rgb(image):
     plt.show()
     plt.cla()
 
+def plot_image_hull(image,points,hull):
+
+    plt.imshow(image, cmap='gray')
+    plt.plot(points[hull.vertices, 0], points[hull.vertices, 1], 'r--', lw=2)
+    plt.plot(points[hull.vertices[0], 0], points[hull.vertices[0], 1], 'ro')
+    plt.show()
+
+def intersection(L1, L2):
+    """ from https://stackoverflow.com/questions/20677795/how-do-i-compute-the-intersection-point-of-two-lines """
+    D  = L1[0] * L2[1] - L1[1] * L2[0]
+    Dx = L1[2] * L2[1] - L1[1] * L2[2]
+    Dy = L1[0] * L2[2] - L1[2] * L2[0]
+    if D != 0:
+        x = Dx / D
+        y = Dy / D
+        return x,y
+    else:
+        return False
+
+def get_all_intersection_points(binary_2d_image):
+    lines = cv2.HoughLines(np.uint8(binary_2d_image), 2, np.deg2rad(1), 180)
+    if lines is None:
+        return None
+    lines = lines.reshape((-1, 2))
+    horizontal, vertical = h_v_lines(lines)
+
+    for i in (horizontal, vertical):
+        l = np.array(i)
+        plt.scatter(l[:,0],l[:,1])
+        plt.show()
+        plt.cla()
+
+    intersection_points = line_intersections(horizontal, vertical)
+    return intersection_points
 
 def find_maximal_square(image,segment:int,debug=True):
     image = image.copy()
@@ -48,7 +84,34 @@ def find_maximal_square(image,segment:int,debug=True):
 
     return board_border_points
 
-def find_borders(gray_image,debug=True):
+def plot_with_lines(image,lines_list):
+    plt.imshow(image,cmap='gray')
+    for line in lines_list:
+        p1,p2 = line
+        plt.plot(p1,p2, color="green", linewidth=3)
+    plt.show()
+
+def lines_from_maximum(horizontal_max,vertical_max,image):
+    v_max,h_max = image.shape
+    horizontal_maxes = [((x,x),(0,v_max)) for x in horizontal_max]
+    vertical_maxes = [((0,h_max), (y,y)) for y in vertical_max]
+    all_lines = horizontal_maxes + vertical_maxes
+    return all_lines
+
+def lines_from_component(binary):
+    image = np.uint8(binary*255)
+    edges = cv2.Canny(image, 1, 100)
+    horizontal = np.sum(edges,axis=1)
+    vertical = np.sum(edges, axis=0)
+    plot_gray(edges)
+    n_elements = int(min(binary.shape)/20)
+    y_axis = argrelextrema(horizontal, np.greater,order=n_elements)[0]
+    x_axis = argrelextrema(vertical, np.greater,order=n_elements)[0]
+    all_lines = lines_from_maximum(x_axis,y_axis,image)
+    intersection_points = [(x,y) for x in x_axis for y in y_axis]
+    return all_lines,intersection_points
+
+def find_81_p(gray_image,debug=True):
 
     if debug:plot_gray(gray_image)
 
@@ -59,18 +122,19 @@ def find_borders(gray_image,debug=True):
     _, components = cv2.connectedComponents(segmented)
 
     unique, counts = np.unique(components, return_counts=True)
-    ascending_sizes = counts.argsort()
+    ascending_sizes = np.argsort(counts)
     descending_sizes = ascending_sizes[::-1]
+    minimal_size = (gray_image.shape[0] * gray_image.shape[1]) /8
     bigger_components_first = unique[descending_sizes]
-    for component_number in bigger_components_first:
-        square_vertices = find_maximal_square(components, component_number, debug = debug)
-        if square_vertices is not None:
-            return square_vertices
-    return None
+    sizes = counts[descending_sizes]
+    for index,component_number in enumerate(bigger_components_first):
+        if sizes[index]<minimal_size: break
+        is_component = (components==component_number)*1
+        all_lines,intersection_points = lines_from_component(is_component)
+        if len(intersection_points)==81:
+            return intersection_points
 
 def plot_frame_and_points(gray_image,points):
-    # x = [p[0] for p in clustered_points]
-    # y = [p[1] for p in clustered_points]
     x = points[:,0]
     y = points[:,1]
     plt.imshow(gray_image,cmap='gray')
@@ -84,7 +148,9 @@ def main(path):
         i+=1
         current_frame = video_reader.__next__()
         current_gray_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
+        plot_gray(current_gray_frame)
         border_points = find_borders(current_gray_frame,debug=False)
+        break
         if border_points is None:
             print('no can do sir')
             continue

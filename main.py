@@ -365,6 +365,46 @@ def find_81_points(gray_image):
 
     return final_points
 
+def set_above_threshold_1_under_0(arr,percentile_threshold=75):
+    threshold = np.percentile(arr,percentile_threshold)
+    binary = (arr>threshold)*1
+    return binary
+
+def naive_81_points(gray_image):
+    """ if board found well and is from above - the lines are in equal spaces """
+    vertical,horizontal = gray_image.shape
+    vertical_guess = int(vertical/8)
+    horizontal_guess = int(horizontal/8)
+    base_intervals = np.linspace(0,8,num=9,dtype=int)
+    x_points = np.repeat(base_intervals,9) * horizontal_guess
+    y_points = np.tile(base_intervals,9) * vertical_guess
+    x_points = x_points.reshape((-1,x_points.shape[0]))
+    y_points = y_points.reshape((-1, y_points.shape[0]))
+    final_points = np.concatenate((x_points,y_points),axis=0).T
+    return final_points
+
+def extract_81_points(gray_image):
+    """ we want to find the lines. they are almost exactly horizontal and vertical, and in semi equal spaces"""
+
+    """ calculate delta """
+    horizontal_delta = np.abs(gray_image[1:,:] - gray_image[:-1,:])
+    vertical_delta = np.abs(gray_image[:,1:] - gray_image[:,:-1])
+
+    """ if delta is big enough keep it"""
+
+    horizontal_delta_binary= set_above_threshold_1_under_0(horizontal_delta)
+    vertical_delta_binary = set_above_threshold_1_under_0(vertical_delta)
+
+    """ sum per axis to get the line """
+
+    big_delta_per_row = np.sum(horizontal_delta_binary,axis=1)
+    big_delta_per_column = np.sum(vertical_delta_binary, axis=0)
+
+
+    """ there are 9 lines in every direction in equal spaces.
+    if line is thick they are duplicated but closer """
+
+
 
 def crop_81_squares(gray_image, points):
     rows = []
@@ -388,12 +428,23 @@ def crop_81_squares(gray_image, points):
         column_index = 0
     return squares_list
 
+def plot_frame_and_points(gray_image,points):
+    x = points[:,0]
+    y = points[:,1]
+    plt.imshow(gray_image,cmap='gray')
+    plt.scatter(x, y, marker="o", color="red", s=30)
+    plt.show()
+
+def plot_gray(image):
+    plt.imshow(image,cmap='gray')
+    plt.show()
+    plt.cla()
 
 def handle_frame(current_frame, debug=None):
     if not debug:
         current_gray_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
 
-        board_border_points = find_board_border_points(current_gray_frame)
+        board_border_points = find_board_border_points(current_gray_frame,debug=False)
         print("done border_points")
         if board_border_points is None:
             print("border points is None")
@@ -405,8 +456,14 @@ def handle_frame(current_frame, debug=None):
     else:
         cropped_board_no_border = current_frame
 
-    final_points = find_81_points(cv2.cvtColor(cropped_board_no_border, cv2.COLOR_BGR2GRAY))
-
+    as_gray = cv2.cvtColor(cropped_board_no_border, cv2.COLOR_BGR2GRAY)
+    final_points = find_81_points(as_gray)
+    naive_points = naive_81_points(as_gray)
+    if final_points is not None:
+        plot_frame_and_points(cropped_board_no_border, final_points)
+    else:
+        plot_gray(cropped_board_no_border)
+        plot_frame_and_points(cropped_board_no_border, naive_points)
     if final_points is None:
         print("final points points is None")
         return None
@@ -414,12 +471,13 @@ def handle_frame(current_frame, debug=None):
         print("done final_points")
 
     if debug:
-        plt.imshow(cropped_board_no_border, cmap='gray')
-        x = [s[0] for s in final_points]
-        y = [s[1] for s in final_points]
-        plt.imshow(adjust_gamma(cropped_board_no_border), cmap='gray')
-        plt.scatter(x, y, marker="o", color="red", s=5)
-        plt.show()
+        plot_frame_and_points(cropped_board_no_border, final_points)
+        # plt.imshow(cropped_board_no_border, cmap='gray')
+        # x = [s[0] for s in final_points]
+        # y = [s[1] for s in final_points]
+        # plt.imshow(adjust_gamma(cropped_board_no_border), cmap='gray')
+        # plt.scatter(x, y, marker="o", color="red", s=5)
+        # plt.show()
 
     squares_dict = crop_81_squares(adjust_gamma(cropped_board_no_border), final_points)
 
@@ -784,4 +842,4 @@ def main(path: str) -> tuple:
     game_moves_file.close()
 
 if __name__ == '__main__':
-    main(r'data/new_chess.mp4')
+    main(r'data/new_hope.mp4')
