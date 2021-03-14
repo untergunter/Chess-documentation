@@ -14,6 +14,7 @@ import imutils
 from scipy.spatial.distance import cdist
 import pandas as pd
 import networkx as nx
+from scipy.signal import argrelextrema
 
 class FramesGetter:
     def __init__(self, path):
@@ -50,6 +51,48 @@ def line_intersections(h_lines, v_lines):
             points.append(inter_point)
     return np.array(points)
 
+def lines_from_maximum(horizontal_max,vertical_max,image):
+    v_max,h_max = image.shape
+    horizontal_maxes = [((x,x),(0,v_max)) for x in horizontal_max]
+    vertical_maxes = [((0,h_max), (y,y)) for y in vertical_max]
+    all_lines = horizontal_maxes + vertical_maxes
+    return all_lines
+
+def lines_from_component(binary):
+    image = np.uint8(binary*255)
+    edges = cv2.Canny(image, 1, 100)
+    horizontal = np.sum(edges,axis=1)
+    vertical = np.sum(edges, axis=0)
+    n_elements = int(min(binary.shape)/20)
+    y_axis = argrelextrema(horizontal, np.greater,order=n_elements)[0]
+    x_axis = argrelextrema(vertical, np.greater,order=n_elements)[0]
+    all_lines = lines_from_maximum(x_axis,y_axis,image)
+    intersection_points = np.array([(x,y) for x in x_axis for y in y_axis])
+    return all_lines,intersection_points
+
+def find_81_p(gray_image,debug=False):
+
+    if debug:plot_gray(gray_image)
+
+    _, segmented = cv2.threshold(gray_image, 0, 255
+                                , cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    if debug:plot_gray(segmented)
+
+    _, components = cv2.connectedComponents(segmented)
+
+    unique, counts = np.unique(components, return_counts=True)
+    ascending_sizes = np.argsort(counts)
+    descending_sizes = ascending_sizes[::-1]
+    minimal_size = (gray_image.shape[0] * gray_image.shape[1]) /8
+    bigger_components_first = unique[descending_sizes]
+    sizes = counts[descending_sizes]
+    for index,component_number in enumerate(bigger_components_first):
+        if sizes[index]<minimal_size: break
+        is_component = (components==component_number)*1
+        all_lines,intersection_points = lines_from_component(is_component)
+        if len(intersection_points)==81:
+            return intersection_points
+    return None
 
 def euclidien_distance(x1, y1, x2, y2):
     return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
@@ -456,14 +499,9 @@ def handle_frame(current_frame, debug=None):
     else:
         cropped_board_no_border = current_frame
 
-    as_gray = cv2.cvtColor(cropped_board_no_border, cv2.COLOR_BGR2GRAY)
-    final_points = find_81_points(as_gray)
-    naive_points = naive_81_points(as_gray)
-    if final_points is not None:
-        plot_frame_and_points(cropped_board_no_border, final_points)
-    else:
-        plot_gray(cropped_board_no_border)
-        plot_frame_and_points(cropped_board_no_border, naive_points)
+    as_gray = cv2.cvtColor(cropped_board, cv2.COLOR_BGR2GRAY)
+    final_points = find_81_p(as_gray)
+
     if final_points is None:
         print("final points points is None")
         return None
