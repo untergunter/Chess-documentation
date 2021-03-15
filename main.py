@@ -92,7 +92,6 @@ def find_81_p(gray_image,debug=False):
         all_lines,intersection_points = lines_from_component(is_component)
         if len(intersection_points)==81:
             return intersection_points
-    #return naive_81_points(gray_image)
     return None
 
 def euclidien_distance(x1, y1, x2, y2):
@@ -220,7 +219,7 @@ def find_borders(gray_image) -> tuple:
     return board_border_points
 
 
-def find_board_border_points(gray_image, debug=True):
+def find_board_border_points(gray_image, debug=False):
     blurred = cv2.GaussianBlur(gray_image, (7, 7), 3)
     thresh = cv2.adaptiveThreshold(blurred, 255,
                                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
@@ -361,6 +360,8 @@ def find_81_points(gray_image):
     lines = np.reshape(lines, (-1, 2))
     horizontal, vertical = h_v_lines(lines)
     intersection_points = line_intersections(horizontal, vertical)
+    if intersection_points is None or len(intersection_points) == 0:
+        return None
     clustered_points = cluster_points(intersection_points, 80)
 
     if len(clustered_points) < 15:
