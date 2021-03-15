@@ -63,14 +63,14 @@ def lines_from_component(binary):
     edges = cv2.Canny(image, 1, 100)
     horizontal = np.sum(edges,axis=1)
     vertical = np.sum(edges, axis=0)
-    n_elements = int(min(binary.shape)/20)
+    n_elements = int(min(binary.shape)/12)
     y_axis = argrelextrema(horizontal, np.greater,order=n_elements)[0]
     x_axis = argrelextrema(vertical, np.greater,order=n_elements)[0]
     all_lines = lines_from_maximum(x_axis,y_axis,image)
     intersection_points = np.array([(x,y) for x in x_axis for y in y_axis])
     return all_lines,intersection_points
 
-def find_81_p(gray_image,debug=False):
+def find_81_p(gray_image,debug=True):
 
     if debug:plot_gray(gray_image)
 
@@ -92,6 +92,7 @@ def find_81_p(gray_image,debug=False):
         all_lines,intersection_points = lines_from_component(is_component)
         if len(intersection_points)==81:
             return intersection_points
+    #return naive_81_points(gray_image)
     return None
 
 def euclidien_distance(x1, y1, x2, y2):
@@ -880,4 +881,7 @@ def main(path: str) -> tuple:
     game_moves_file.close()
 
 if __name__ == '__main__':
-    main(r'data/new_hope.mp4')
+    path = 'data/new_hope.mp4'
+    path2 = 'data/chess_game_video.mp4'
+    path_3 = 'data/chess_game_video.mp4'
+    main(r'data/another_game.mp4')
