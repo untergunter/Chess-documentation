@@ -219,7 +219,7 @@ def find_borders(gray_image) -> tuple:
     return board_border_points
 
 
-def find_board_border_points(gray_image, debug=True):
+def find_board_border_points(gray_image, debug=False):
     blurred = cv2.GaussianBlur(gray_image, (7, 7), 3)
     thresh = cv2.adaptiveThreshold(blurred, 255,
                                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
@@ -360,6 +360,8 @@ def find_81_points(gray_image):
     lines = np.reshape(lines, (-1, 2))
     horizontal, vertical = h_v_lines(lines)
     intersection_points = line_intersections(horizontal, vertical)
+    if intersection_points is None or len(intersection_points) == 0:
+        return None
     clustered_points = cluster_points(intersection_points, 80)
 
     if len(clustered_points) < 15:
@@ -880,4 +882,4 @@ def main(path: str) -> tuple:
     game_moves_file.close()
 
 if __name__ == '__main__':
-    main(r'data/new_hope.mp4')
+    main(r'data/new_chess.mp4')
