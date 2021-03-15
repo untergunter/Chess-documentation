@@ -70,7 +70,7 @@ def lines_from_component(binary):
     intersection_points = np.array([(x,y) for x in x_axis for y in y_axis])
     return all_lines,intersection_points
 
-def find_81_p(gray_image,debug=True):
+def find_81_p(gray_image,debug=False):
 
     if debug:plot_gray(gray_image)
 
