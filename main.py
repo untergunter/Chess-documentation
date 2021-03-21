@@ -179,6 +179,24 @@ def find_borders(gray_image) -> tuple:
 
     return board_border_points
 
+def orient_first_board(first_board:np.ndarray)->np.ndarray:
+    """ rotates the board if it is on its side """
+    rows_sum = first_board.sum(axis=1)
+    if np.max(rows_sum) - np.min(rows_sum) >3:
+        return first_board
+    else:
+        return first_board.T
+
+def rotate_board(current_board:np.ndarray,last_board:np.ndarray)->np.ndarray:
+    """ this function takes a 8X8 representation of the board and the last Known one"""
+    best_rotated = None
+    smallest_diff = np.inf
+    for _ in range(4):
+        diff = current_board - last_board
+        if diff<smallest_diff:
+            best_rotated = current_board.copy()
+        current_board = current_board.T
+    return best_rotated
 
 def find_board_border_points(gray_image, debug=False):
     blurred = cv2.GaussianBlur(gray_image, (7, 7), 3)
