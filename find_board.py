@@ -156,16 +156,25 @@ def main(path):
             continue
         plot_frame_and_points(current_gray_frame,border_points)
 
-def rotate_board(current_board:np.ndarray,last_board:np.ndarray)->np.ndarray:
-    """ this function takes a 8X8 representation of the board and the last Known one"""
-    best_rotated = None
-    smallest_diff = np.inf
+def orient_first_board(first_board:np.ndarray)->np.ndarray:
+    """
+    rotates the board if it is on its side in a way the white are on the bottom
+    :param first_board: image of the board
+    :return:
+    """
+    best_angle = first_board.copy()
+    max_diff = 0
     for _ in range(4):
-        diff = current_board - last_board
-        if diff<smallest_diff:
-            best_rotated = current_board.copy()
-        current_board = current_board.T
-    return best_rotated
+        rows_sum = first_board.sum(axis=1)
+        eighth = int(rows_sum.shape[0]/8)
+        lower_board = np.mean(rows_sum[-eighth:])
+        upper_board = np.mean(rows_sum[:eighth])
+        diff = lower_board - upper_board
+        if diff > max_diff:
+            max_diff = diff
+            best_angle = first_board.copy()
+        first_board = np.rot90(first_board)
+    return best_angle
 
 if __name__=='__main__':
     path = 'data/new_hope.mp4'

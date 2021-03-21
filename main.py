@@ -180,11 +180,13 @@ def find_borders(gray_image) -> tuple:
     return board_border_points
 
 def orient_first_board(first_board:np.ndarray)->np.ndarray:
+
     """
     rotates the board if it is on its side in a way the white are on the bottom
     :param first_board: image of the board
     :return:
     """
+
     best_angle = first_board.copy()
     max_diff = 0
     for _ in range(4):
@@ -204,7 +206,7 @@ def rotate_board(current_board:np.ndarray,last_board:np.ndarray)->np.ndarray:
     best_rotated = None
     smallest_diff = np.inf
     for _ in range(4):
-        diff = current_board - last_board
+        diff = np.sum(np.abs(current_board - last_board))
         if diff<smallest_diff:
             best_rotated = current_board.copy()
         current_board = np.rot90(current_board)
@@ -614,6 +616,35 @@ def start_piece_dict():
             piece_dict[col + str(row)] = "full" if row in [1, 2, 7, 8] else "empty"
     return piece_dict
 
+def piece_dict_to_array(piece_dict:dict)->np.ndarray:
+    """
+    changing representation of the board from dict to 2d array
+    :param piece_dict:
+    :return:
+    """
+    board = np.zeros(shape=(8,8))
+    columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    for numeric_col,col in enumerate(columns):
+        for row in range(8, 0, -1):
+            key_letter_number = f'{col}{row}'
+            piece = 0 if piece_dict[key_letter_number] == "empty" else 1
+            board[row,numeric_col] = piece
+    return board
+
+def array_to_piece_dict(board:np.ndarray)->dict:
+    """
+    changing representation of the board from 2d array to dict
+    :param board:
+    :return:
+    """
+    piece_dict = dict()
+    columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    for numeric_col,col in enumerate(columns):
+        for row in range(8, 0, -1):
+            piece = "empty" if board[row,numeric_col]==0 else 'full'
+            key_letter_number = f'{col}{row}'
+            piece_dict[key_letter_number] = piece
+    return piece_dict
 
 def adjust_gamma(image, gamma=3.0):
     invGamma = 1.0 / gamma
@@ -676,6 +707,7 @@ def main(path: str) -> tuple:
     labels = None
     valid_squares_dict = None
     jump = False
+    is_first_frame = True
     piece_dict_color_diff = None
     board = chess.Board()
 
@@ -706,6 +738,10 @@ def main(path: str) -> tuple:
         res = handle_frame(current_frame)
         if res:
             squares_dict_current, cropped_frame = res
+            if is_first_frame:
+                orient_board = orient_first_board(cropped_frame)
+                squares_dict_current, cropped_frame = handle_frame(orient_board)
+                is_first_frame = False
             squares_dict_list.append(squares_dict_current)
             print("done handle")
         else:
@@ -717,9 +753,15 @@ def main(path: str) -> tuple:
                 first_frame = False
             current_piece_dict = diff_squares(squares_dict_current, model)
             print("done diff")
+            last_board = piece_dict_to_array(prev_piece_dict)
+            current_board = piece_dict_to_array(current_piece_dict)
+            current_board = rotate_board(last_board, current_board)
+            current_piece_dict = array_to_piece_dict(current_board)
             if valid_squares_dict:
+
                 piece_dict_color_diff = color_diff(squares_dict_current, valid_squares_dict)
             if prev_piece_dict and current_piece_dict:
+
                 move, label_change_count = update_board_state(current_piece_dict, prev_piece_dict,
                                                               piece_dict_color_diff, board)
                 print("done update")
