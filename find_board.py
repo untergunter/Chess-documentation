@@ -156,7 +156,24 @@ def main(path):
             continue
         plot_frame_and_points(current_gray_frame,border_points)
 
+def rotate_board(current_board:np.ndarray,last_board:np.ndarray)->np.ndarray:
+    """ this function takes a 8X8 representation of the board and the last Known one"""
+    best_rotated = None
+    smallest_diff = np.inf
+    for _ in range(4):
+        diff = current_board - last_board
+        if diff<smallest_diff:
+            best_rotated = current_board.copy()
+        current_board = current_board.T
+    return best_rotated
+
 if __name__=='__main__':
     path = 'data/new_hope.mp4'
     path2 = 'data/chess_game_video.mp4'
-    main(path)
+    # main(path)
+    t = np.array([-1, -1, 0, 0, 0, 0, 1, 1]).repeat(8).reshape((8,8)).T
+    r = orient_first_board(t)
+    print(r)
+    t = np.array([-1, -1, 0, 0, 0, 0, 1, 1]).repeat(8).reshape((8, 8))
+    r = orient_first_board(t)
+    print(r)
